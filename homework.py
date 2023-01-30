@@ -4,9 +4,6 @@ import requests
 from datetime import datetime, timedelta, timezone
 import time
 import telegram
-from telegram.ext import CommandHandler, Updater, Filters, MessageHandler
-from telegram import ReplyKeyboardMarkup
-
 import app_logger
 
 logger = app_logger.get_logger(__name__)
