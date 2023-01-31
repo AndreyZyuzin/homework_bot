@@ -73,6 +73,7 @@ def send_message(bot, message):
         logger.debug(f'Отправлено сообщение в чат телеграмма: "{message}"')
     except telegram.error.TelegramError as error:
         logger.error(error, exc_info=False)
+        raise telegram.error.TelegramError
 
 
 def get_api_answer(timestamp):
