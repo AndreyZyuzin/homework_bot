@@ -5,7 +5,6 @@ class _Exception(Exception):
         """Начальная установка исключения."""
         super().__init__(*args)
 
-
     def __str__(self):
         """Сообщение исключения."""
         return self.__doc__ + '\n' + super().__str__()
