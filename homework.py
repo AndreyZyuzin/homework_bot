@@ -7,8 +7,36 @@ import telegram
 import logging
 import exceptions
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s, %(levelname)s, %(message)s')
+LOG_FORMAT = '%(asctime)s, %(levelname)s, %(message)s'
+
+
+def get_file_handler():
+    """Подключение логирование в файл."""
+    file_handler = logging.FileHandler("main.log", mode='a')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    return file_handler
+
+
+def get_stream_handler():
+    """Подключение логирование в консоль."""
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.DEBUG)
+    stream_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    return stream_handler
+
+
+def get_logger(name):
+    """Подключение само логирование."""
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(get_file_handler())
+    logger.addHandler(get_stream_handler())
+    return logger
+
+
+logger = get_logger(__name__)
+
 load_dotenv()
 
 
@@ -30,70 +58,49 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверка переменных окружения."""
-    # if 'PRACTICUM_TOKEN' not in globals():
-    #     raise exceptions.TokenError
-    # if 'TELEGRAM_TOKEN' not in globals():
-    #     raise exceptions.TokenError
-    # if 'TELEGRAM_CHAT_ID' not in globals():
-    #     raise exceptions.TokenError
     if PRACTICUM_TOKEN is None:
-        raise exceptions.TokenError
+        raise exceptions.PracticumTokenError
     if TELEGRAM_TOKEN is None:
-        raise exceptions.TokenError
+        raise exceptions.TelegramTokenError
     if TELEGRAM_CHAT_ID is None:
-        raise exceptions.TokenError
-    url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates'
-    response = requests.get(url).json()
-    if not response.get('ok'):
-        return False
-    response = get_api_answer(int(time.time()))
-    if 'homeworks' not in response:
-        return False
-    return True
+        raise exceptions.TelegramChatIdError
 
 
 def send_message(bot, message):
     """Отправка сообщения в Telegram-чат."""
     try:
         bot.send_message(text=message, chat_id=TELEGRAM_CHAT_ID)
-    except Exception as error:
-        logging.error(error, exc_info=False)
-        raise telegram.error.TelegramError
-    logging.debug(f'Отправлено сообщение в чат телеграмма: "{message}"')
+        logger.debug(f'Отправлено сообщение в чат телеграмма: "{message}"')
+    except telegram.error.TelegramError as error:
+        logger.error(error, exc_info=False)
 
 
 def get_api_answer(timestamp):
-    """Получить запрос к ендпоинту."""
+    """Получить ответ от запроса к ендпоинту."""
     try:
         response = requests.get(
             ENDPOINT,
             headers=HEADERS,
             params={'from_date': timestamp}
         )
-    except requests.RequestException as error:
-        raise Exception('adf')
+    except requests.RequestException:
+        raise exceptions.RequestException
     if response.status_code != HTTPStatus.OK:
         raise exceptions.StatusCodeNot200RequestsError(
             response.status_code, ENDPOINT)
-
     return response.json()
 
 
 def check_response(response):
     """Проверка ответа API на соответствие документации."""
     if not isinstance(response, dict):
-        raise TypeError
+        raise TypeError('response: ', type(response))
     if 'homeworks' not in response:
-        raise exceptions.APIResponseNotMatchError
+        raise exceptions.APIResponseNotMatchError(
+            "'homeworks' не входит в response")
     homeworks = response.get('homeworks')
     if not isinstance(homeworks, list):
-        raise TypeError
-    homework = homeworks[0] if len(homeworks) else None
-    if homework and 'homework_name' not in homework:
-        raise exceptions.APIResponseNotMatchError
-    # if 'status' not in homework:
-    #     raise exceptions.APIResponseNotMatchError
-    return True
+        raise TypeError('homeworks: ', type(homeworks))
 
 
 def parse_status(homework):
@@ -101,11 +108,13 @@ def parse_status(homework):
     if not isinstance(homework, dict):
         return
     if 'homework_name' not in homework:
-        raise Exception('Понятный текст')
+        raise exceptions.ParseStatusError(
+            "'homework_name' не входит в homework, а должен быть")
     if 'status' not in homework:
-        raise Exception('Понятный текст')
-    if homework["status"] not in HOMEWORK_VERDICTS:
-        raise exceptions.TokenError
+        raise exceptions.ParseStatusError(
+            "'status' не входит в homework, а должен быть")
+    if homework['status'] not in HOMEWORK_VERDICTS:
+        raise exceptions.ParseStatusError("Не известный вердикт")
     return (
         f'Изменился статус проверки работы "{homework["homework_name"]}".'
         f'{HOMEWORK_VERDICTS[homework["status"]]}'
@@ -114,11 +123,11 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    logging.info('Старт программы')
+    logger.info('Старт программы')
     try:
         check_tokens()
     except Exception as error:
-        logging.critical(error, exc_info=False)
+        logger.critical(error, exc_info=False)
         raise SystemExit
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
@@ -129,27 +138,20 @@ def main():
             response = get_api_answer(0)
             check_response(response)
             homework = response.get('homeworks')
-            if isinstance(homework, list):
-                if len(homework):
-                    homework = homework[0]
+            if isinstance(homework, list) and len(homework):
+                homework = homework[0]
             status = parse_status(homework)
             if not last_status == status:
                 last_status = status
                 send_message(bot, status)
-                logging.debug(status)
             else:
-                logging.debug('Нет изменения статуса')
+                logger.debug('Нет изменения статуса')
             time.sleep(RETRY_PERIOD)
-        except requests.RequestException as error:
-            raise
         except Exception as error:
             error_text = f'{type(error).__name__}: {error}'
             send_message(bot, f'Сбой в работе программы: {error_text}')
-            logging.exception(f'{error_text}', exc_info=True)
+            logger.exception(f'{error_text}', exc_info=False)
             raise
-
-
-    logging.info('Завершение работы программы')
 
 
 if __name__ == '__main__':
