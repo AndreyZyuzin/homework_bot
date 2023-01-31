@@ -126,7 +126,7 @@ def main():
     logger.info('Старт программы')
     try:
         check_tokens()
-    except Exception as error:
+    except exceptions.TokenError as error:
         logger.critical(error, exc_info=False)
         raise SystemExit
 
@@ -147,7 +147,10 @@ def main():
             else:
                 logger.debug('Нет изменения статуса')
             time.sleep(RETRY_PERIOD)
-        except Exception as error:
+        except (exceptions.RequestException,
+                exceptions.StatusCodeNot200RequestsError,
+                exceptions.APIResponseNotMatchError,
+                exceptions.ParseStatusError) as error:
             error_text = f'{type(error).__name__}: {error}'
             send_message(bot, f'Сбой в работе программы: {error_text}')
             logger.exception(f'{error_text}', exc_info=False)
