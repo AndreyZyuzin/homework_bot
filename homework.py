@@ -146,7 +146,6 @@ def main():
                 send_message(bot, status)
             else:
                 logger.debug('Нет изменения статуса')
-            time.sleep(RETRY_PERIOD)
         except (exceptions.RequestException,
                 exceptions.StatusCodeNot200RequestsError,
                 exceptions.APIResponseNotMatchError,
@@ -154,7 +153,7 @@ def main():
             error_text = f'{type(error).__name__}: {error}'
             send_message(bot, f'Сбой в работе программы: {error_text}')
             logger.exception(f'{error_text}', exc_info=False)
-            raise
+        time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
