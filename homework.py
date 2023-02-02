@@ -36,9 +36,9 @@ logger.addHandler(logger_config.get_file_handler())
 logger.addHandler(logger_config.get_stream_handler())
 
 
-def check_tokens(*args: object) -> None:
+def check_tokens(*args: tuple) -> None:
     """Проверка переменных окружения."""
-    no_valid = [v for v in args if globals().get(v) is None]
+    no_valid: list = [v for v in args if globals().get(v) is None]
     if no_valid:
         raise NameError(f'Отсутствуют {", ".join(no_valid)}')
 
@@ -138,22 +138,23 @@ def main() -> None:
         logger.critical(f'{type(error).__name__}: {error}')
         raise SystemExit
 
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    last_status = None
+    bot: telegram.Bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    last_status: str = ''
 
     while True:
         try:
-            from_date = (datetime.now(timezone.utc)
-                         - timedelta(days=VIEWABLE_DAYS_TO_REQUEST_PROJECTS))
-            unix_timestamp = int(from_date.timestamp())
-            response = get_api_answer(unix_timestamp)
+            from_date: datetime = (
+                datetime.now(timezone.utc)
+                - timedelta(days=VIEWABLE_DAYS_TO_REQUEST_PROJECTS))
+            unix_timestamp: int = int(from_date.timestamp())
+            response: dict = get_api_answer(unix_timestamp)
             check_response(response)
-            homeworks = response.get('homeworks')
+            homeworks: list = response.get('homeworks')
             if len(homeworks) == 0:
-                status = 'Пустой список домашних работ.'
+                status: str = 'Пустой список домашних работ.'
             else:
-                homework = get_last_homework(homeworks)
-                status = parse_status(homework)
+                homework: dict = get_last_homework(homeworks)
+                status: list = parse_status(homework)
             if not last_status == status:
                 last_status = status
                 send_message(bot, status)
@@ -165,7 +166,7 @@ def main() -> None:
                 exceptions.ParseStatusError,
                 TypeError,
                 KeyError,) as error:
-            error_text = f'{type(error).__name__}: {error}'
+            error_text: str = f'{type(error).__name__}: {error}'
             send_message(bot, f'Сбой в работе программы: {error_text}')
             logger.error(f'{error_text}')
         except exceptions.TelegramError:
