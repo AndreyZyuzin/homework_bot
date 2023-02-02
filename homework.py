@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
 import requests
@@ -26,6 +27,8 @@ HOMEWORK_VERDICTS = {
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
+
+VIEWABLE_DAYS_TO_REQUEST_PROJECTS = 7 * 2
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -67,7 +70,7 @@ def get_api_answer(timestamp: int) -> dict:
     return response.json()
 
 
-def check_response(response: dict) -> dict:
+def check_response(response: dict) -> None:
     """Проверка ответа API на соответствие документации."""
     if not isinstance(response, dict):
         raise TypeError(f'Ответ запроса - {type(response)}, а ожидается dict')
@@ -75,9 +78,27 @@ def check_response(response: dict) -> dict:
     if not isinstance(homeworks, list):
         raise TypeError(f'"homeworks" в запроса - {type(response)}, '
                         'а ожидается list')
+
+
+def get_last_homework(homeworks: list) -> dict:
+    """Получить последнюю работу."""
     if len(homeworks) == 0:
         raise exceptions.EmptyHomeworkArrayException(
             'Пустой список домашних работ.')
+
+    def get_homework(key):
+        return sorted(homeworks, key=lambda hw: hw[key], reverse=True)[0]
+
+    try:
+        return get_homework('date_updated')
+    except KeyError as error:
+        logger.error(f'Не удалось отсортировать список по {error}')
+
+    try:
+        return get_homework('id')
+    except KeyError as error:
+        logger.error(f'Не удалось отсортировать список по {error}')
+
     return homeworks[0]
 
 
@@ -122,30 +143,39 @@ def main() -> None:
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     last_status = None
+    status = None
 
     while True:
         try:
-            response = get_api_answer(0)
-            homework = check_response(response)
+            from_date = (datetime.now(timezone.utc)
+                         - timedelta(days=VIEWABLE_DAYS_TO_REQUEST_PROJECTS))
+            unix_timestamp = int(from_date.timestamp())
+            response = get_api_answer(unix_timestamp)
+            check_response(response)
+            homeworks = response.get('homeworks')
+            homework = get_last_homework(homeworks)
             status = parse_status(homework)
-            if not last_status == status:
-                last_status = status
-                send_message(bot, status)
-            else:
-                logger.debug('Нет изменения статуса')
         except (exceptions.RequestException,
                 exceptions.StatusCodeNot200RequestsError,
                 exceptions.APIResponseNotMatchError,
                 exceptions.ParseStatusError,
-                exceptions.EmptyHomeworkArrayException,
                 TypeError,
                 KeyError,) as error:
             error_text = f'{type(error).__name__}: {error}'
             send_message(bot, f'Сбой в работе программы: {error_text}')
             logger.error(f'{error_text}')
         except exceptions.TelegramError:
-            # уже обработал в send_message()
+            # уже отработал в send_message()
             pass
+        except exceptions.EmptyHomeworkArrayException as exception:
+            status = str(exception)
+            if not last_status == status:
+                logger.info(f'{type(exception).__name__}: {exception}')
+        if not last_status == status:
+            last_status = status
+            send_message(bot, status)
+        else:
+            logger.debug('Нет изменения статуса')
         time.sleep(RETRY_PERIOD)
 
 
