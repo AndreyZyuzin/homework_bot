@@ -82,9 +82,6 @@ def check_response(response: dict) -> None:
 
 def get_last_homework(homeworks: list) -> dict:
     """Получить последнюю работу."""
-    if len(homeworks) == 0:
-        raise exceptions.EmptyHomeworkArrayException(
-            'Пустой список домашних работ.')
 
     def get_homework(key):
         return sorted(homeworks, key=lambda hw: hw[key], reverse=True)[0]
@@ -143,7 +140,6 @@ def main() -> None:
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     last_status = None
-    status = None
 
     while True:
         try:
@@ -153,8 +149,16 @@ def main() -> None:
             response = get_api_answer(unix_timestamp)
             check_response(response)
             homeworks = response.get('homeworks')
-            homework = get_last_homework(homeworks)
-            status = parse_status(homework)
+            if len(homeworks) == 0:
+                status = 'Пустой список домашних работ.'
+            else:
+                homework = get_last_homework(homeworks)
+                status = parse_status(homework)
+            if not last_status == status:
+                last_status = status
+                send_message(bot, status)
+            else:
+                logger.debug('Нет изменения статуса')
         except (exceptions.RequestException,
                 exceptions.StatusCodeNot200RequestsError,
                 exceptions.APIResponseNotMatchError,
@@ -167,15 +171,6 @@ def main() -> None:
         except exceptions.TelegramError:
             # уже отработал в send_message()
             pass
-        except exceptions.EmptyHomeworkArrayException as exception:
-            status = str(exception)
-            if not last_status == status:
-                logger.info(f'{type(exception).__name__}: {exception}')
-        if not last_status == status:
-            last_status = status
-            send_message(bot, status)
-        else:
-            logger.debug('Нет изменения статуса')
         time.sleep(RETRY_PERIOD)
 
 

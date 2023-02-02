@@ -25,9 +25,5 @@ class ParseStatusError(Exception):
         super().__init__(message)
 
 
-class EmptyHomeworkArrayException(Exception):
-    """Исключение отсутствие какой-либо домашней работы в их списке."""
-
-
 class TelegramError(Exception):
     """Ошибка работы телеграм."""
