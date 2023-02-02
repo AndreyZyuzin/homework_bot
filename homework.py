@@ -47,6 +47,7 @@ def send_message(bot: telegram.Bot, message: str) -> None:
         logger.debug(f'Отправлено сообщение в чат телеграмма: "{message}"')
     except telegram.error.TelegramError as error:
         logger.error(error)
+        exceptions.TelegramError
 
 
 def get_api_answer(timestamp: int) -> dict:
@@ -142,6 +143,9 @@ def main() -> None:
             error_text = f'{type(error).__name__}: {error}'
             send_message(bot, f'Сбой в работе программы: {error_text}')
             logger.error(f'{error_text}')
+        except exceptions.TelegramError:
+            # уже обработал в send_message()
+            pass
         time.sleep(RETRY_PERIOD)
 
 

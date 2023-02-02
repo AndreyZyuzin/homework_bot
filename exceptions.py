@@ -27,3 +27,7 @@ class ParseStatusError(Exception):
 
 class EmptyHomeworkArrayException(Exception):
     """Исключение отсутствие какой-либо домашней работы в их списке."""
+
+
+class TelegramError(Exception):
+    """Ошибка работы телеграм."""
