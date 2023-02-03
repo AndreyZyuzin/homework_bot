@@ -36,11 +36,15 @@ logger.addHandler(logger_config.get_file_handler())
 logger.addHandler(logger_config.get_stream_handler())
 
 
-def check_tokens(*args: tuple) -> None:
+def check_tokens() -> None:
     """Проверка переменных окружения."""
-    no_valid: list = [v for v in args if globals().get(v) is None]
-    if no_valid:
-        raise NameError(f'Отсутствуют {", ".join(no_valid)}')
+    variables = (
+        PRACTICUM_TOKEN,
+        TELEGRAM_TOKEN,
+        TELEGRAM_CHAT_ID,
+    )
+    if not all(variables):
+        raise TypeError('Отсутствие необходимых переменных окружения')
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
@@ -50,7 +54,7 @@ def send_message(bot: telegram.Bot, message: str) -> None:
         logger.debug(f'Отправлено сообщение в чат телеграмма: "{message}"')
     except telegram.error.TelegramError as error:
         logger.error(error)
-        exceptions.TelegramError
+        raise 'Ошибка в работе телеграма'
 
 
 def get_api_answer(timestamp: int) -> dict:
@@ -80,26 +84,7 @@ def check_response(response: dict) -> None:
                         'а ожидается list')
 
 
-def get_last_homework(homeworks: list) -> dict:
-    """Получить последнюю работу."""
-
-    def get_homework(key):
-        return sorted(homeworks, key=lambda hw: hw[key], reverse=True)[0]
-
-    try:
-        return get_homework('date_updated')
-    except KeyError as error:
-        logger.error(f'Не удалось отсортировать список по {error}')
-
-    try:
-        return get_homework('id')
-    except KeyError as error:
-        logger.error(f'Не удалось отсортировать список по {error}')
-
-    return homeworks[0]
-
-
-def parse_status(homework: dict) -> str:
+def parse_status_experimental(homework: dict) -> str:
     """Извлечения информации о домашней работе."""
     try:
         return (
@@ -114,18 +99,21 @@ def parse_status(homework: dict) -> str:
                         'а ожидается dict')
 
 
-def parse_status_experimental(homework: dict) -> str:
+def parse_status(homework: dict) -> str:
     """Извлечения информации о домашней работе."""
     if not isinstance(homework, dict):
         raise TypeError(f'Тип homework - {type(homework)}, а ожидается dict')
-    for key in ('homework_name', 'status'):
-        if key not in homework:
-            raise KeyError(f'{key} должен входит в homework')
-    if homework['status'] not in HOMEWORK_VERDICTS:
+
+    if not {'homework_name', 'status'}.issubset(homework):
+        raise KeyError('В homework должны быть "homework_name", "status"')
+
+    status = homework['status']
+    if status not in HOMEWORK_VERDICTS:
         raise exceptions.ParseStatusError('Не известный вердикт')
+
     return (
         f'Изменился статус проверки работы "{homework["homework_name"]}".'
-        f'{HOMEWORK_VERDICTS[homework["status"]]}'
+        f'{HOMEWORK_VERDICTS[status]}'
     )
 
 
@@ -133,8 +121,8 @@ def main() -> None:
     """Основная логика работы бота."""
     logger.info('Старт программы')
     try:
-        check_tokens('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID')
-    except NameError as error:
+        check_tokens()
+    except TypeError as error:
         logger.critical(f'{type(error).__name__}: {error}')
         raise SystemExit
 
@@ -146,15 +134,17 @@ def main() -> None:
             from_date: datetime = (
                 datetime.now(timezone.utc)
                 - timedelta(days=VIEWABLE_DAYS_TO_REQUEST_PROJECTS))
-            unix_timestamp: int = int(from_date.timestamp())
+            unix_timestamp = int(from_date.timestamp())
             response: dict = get_api_answer(unix_timestamp)
             check_response(response)
             homeworks: list = response.get('homeworks')
-            if len(homeworks) == 0:
+            if not len(homeworks):
+                # один из тестов pytest исползует пустой homeworks=[] (стр 666)
+                # кроме того сейчас бот забирает данные двух последних недель
                 status: str = 'Пустой список домашних работ.'
             else:
-                homework: dict = get_last_homework(homeworks)
-                status: list = parse_status(homework)
+                homework: dict = homeworks[0]
+                status: str = parse_status(homework)
             if not last_status == status:
                 last_status = status
                 send_message(bot, status)
@@ -169,9 +159,6 @@ def main() -> None:
             error_text: str = f'{type(error).__name__}: {error}'
             send_message(bot, f'Сбой в работе программы: {error_text}')
             logger.error(f'{error_text}')
-        except exceptions.TelegramError:
-            # уже отработал в send_message()
-            pass
         time.sleep(RETRY_PERIOD)
 
 

@@ -13,7 +13,7 @@ class APIResponseNotMatchError(Exception):
 class ParseStatusError(Exception):
     """Ошибка при разборе данных."""
 
-    def __init__(self, *args: object,
+    def __init__(self, *args: tuple,
                  problem_key=None,
                  array=None) -> None:
         """Начальная установка исключения."""
@@ -23,7 +23,3 @@ class ParseStatusError(Exception):
         if array:
             message += f' Объект: {str(array)}'
         super().__init__(message)
-
-
-class TelegramError(Exception):
-    """Ошибка работы телеграм."""
