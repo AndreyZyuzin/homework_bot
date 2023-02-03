@@ -38,13 +38,15 @@ logger.addHandler(logger_config.get_stream_handler())
 
 def check_tokens() -> None:
     """Проверка переменных окружения."""
-    variables = (
-        PRACTICUM_TOKEN,
-        TELEGRAM_TOKEN,
-        TELEGRAM_CHAT_ID,
-    )
-    if not all(variables):
-        raise TypeError('Отсутствие необходимых переменных окружения')
+    variables = {
+        'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
+        'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
+        'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
+    }
+    if not all(variables.values()):
+        no_valid = [key for key, value in variables.items() if value is None]
+        raise TypeError('Отсутствие необходимых переменных окружения: '
+                        f'{", ".join(no_valid)}')
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
@@ -127,11 +129,11 @@ def main() -> None:
         raise SystemExit
 
     bot: telegram.Bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    last_status: str = ''
+    last_status = ''
 
     while True:
         try:
-            from_date: datetime = (
+            from_date = (
                 datetime.now(timezone.utc)
                 - timedelta(days=VIEWABLE_DAYS_TO_REQUEST_PROJECTS))
             unix_timestamp = int(from_date.timestamp())
@@ -142,7 +144,7 @@ def main() -> None:
                 # один из тестов pytest исползует пустой homeworks=[] (стр 666)
                 # кроме того сейчас бот забирает данные двух последних недель
                 # и иногда бывает пустой список
-                status: str = 'Пустой список домашних работ.'
+                status = 'Пустой список домашних работ.'
             else:
                 homework: dict = homeworks[0]
                 status: str = parse_status(homework)
@@ -157,7 +159,7 @@ def main() -> None:
                 exceptions.ParseStatusError,
                 TypeError,
                 KeyError,) as error:
-            error_text: str = f'{type(error).__name__}: {error}'
+            error_text = f'{type(error).__name__}: {error}'
             send_message(bot, f'Сбой в работе программы: {error_text}')
             logger.error(f'{error_text}')
         time.sleep(RETRY_PERIOD)
