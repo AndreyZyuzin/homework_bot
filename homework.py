@@ -141,6 +141,7 @@ def main() -> None:
             if not len(homeworks):
                 # один из тестов pytest исползует пустой homeworks=[] (стр 666)
                 # кроме того сейчас бот забирает данные двух последних недель
+                # и иногда бывает пустой список
                 status: str = 'Пустой список домашних работ.'
             else:
                 homework: dict = homeworks[0]
