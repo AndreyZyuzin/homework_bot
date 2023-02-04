@@ -56,7 +56,7 @@ def send_message(bot: telegram.Bot, message: str) -> None:
         logger.debug(f'Отправлено сообщение в чат телеграмма: "{message}"')
     except telegram.error.TelegramError as error:
         logger.error(error)
-        raise 'Ошибка в работе телеграма'
+        raise telegram.error.TelegramError('Ошибка в работе телеграма')
 
 
 def get_api_answer(timestamp: int) -> dict:
@@ -141,9 +141,6 @@ def main() -> None:
             check_response(response)
             homeworks: list = response.get('homeworks')
             if not len(homeworks):
-                # один из тестов pytest исползует пустой homeworks=[] (стр 666)
-                # кроме того сейчас бот забирает данные двух последних недель
-                # и иногда бывает пустой список
                 status = 'Пустой список домашних работ.'
             else:
                 homework: dict = homeworks[0]
