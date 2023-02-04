@@ -23,3 +23,7 @@ class ParseStatusError(Exception):
         if array:
             message += f' Объект: {str(array)}'
         super().__init__(message)
+
+
+class TelegramError(Exception):
+    """Ошибка при работе телеграма."""
